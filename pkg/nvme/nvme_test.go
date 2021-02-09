@@ -15,13 +15,26 @@ const (
 	sizeOfAdminCmd      = 72
 )
 
+var (
+	nvmeTcList = []struct {
+		obj  interface{}
+		ptr  interface{}
+		size uint32
+	}{
+		{UserIO{}, &UserIO{}, sizeOfUserIO},
+		{PassthruCmd32{}, &PassthruCmd32{}, sizeOfPassthruCmd32},
+		{PassthruCmd64{}, &PassthruCmd64{}, sizeOfPassthruCmd64},
+		{AdminCmd{}, &AdminCmd{}, sizeOfAdminCmd},
+	}
+)
+
 func TestIOCtlCMD(t *testing.T) {
 	a := assert.New(t)
 
 	// reference code from nvme-cli project
 	expectedNVMeIOCtlId := ioctl.IO('N', 0x40)
 	expectedNVMeIOCtlAdminCmd := ioctl.IOWR('N', 0x41, uint64(unsafe.Sizeof(AdminCmd{})))
-	expectedNVMeIOCtlSubmitIO := ioctl.IOW('N', 0x42, uint64(unsafe.Sizeof(UserIo{})))
+	expectedNVMeIOCtlSubmitIO := ioctl.IOW('N', 0x42, uint64(unsafe.Sizeof(UserIO{})))
 	expectedNVMeIOCtlIOCmd := ioctl.IOWR('N', 0x43, uint64(unsafe.Sizeof(PassthruCmd32{})))
 	expectedNVMeIOCtlReset := ioctl.IO('N', 0x44)
 	expectedNVMeIOCtlSubSysReset := ioctl.IO('N', 0x45)
@@ -64,7 +77,7 @@ func TestIOCtlCMD(t *testing.T) {
 func TestDataSizeCheck(t *testing.T) {
 	a := assert.New(t)
 
-	a.Equal(sizeOfUserIO, int(unsafe.Sizeof(UserIo{})))
+	a.Equal(sizeOfUserIO, int(unsafe.Sizeof(UserIO{})))
 	a.Equal(sizeOfPassthruCmd32, int(unsafe.Sizeof(PassthruCmd32{})))
 	a.Equal(sizeOfPassthruCmd64, int(unsafe.Sizeof(PassthruCmd64{})))
 	a.Equal(sizeOfAdminCmd, int(unsafe.Sizeof(AdminCmd{})))
@@ -73,18 +86,7 @@ func TestDataSizeCheck(t *testing.T) {
 func Test_getPtr(t *testing.T) {
 	a := assert.New(t)
 
-	tcList := []struct {
-		obj  interface{}
-		ptr  interface{}
-		size uint32
-	}{
-		{UserIo{}, &UserIo{}, sizeOfUserIO},
-		{PassthruCmd32{}, &PassthruCmd32{}, sizeOfPassthruCmd32},
-		{PassthruCmd64{}, &PassthruCmd64{}, sizeOfPassthruCmd64},
-		{AdminCmd{}, &AdminCmd{}, sizeOfAdminCmd},
-	}
-
-	for _, tc := range tcList {
+	for _, tc := range nvmeTcList {
 		_, _, err := getPtr(tc.obj)
 		a.Error(err)
 
@@ -92,5 +94,68 @@ func Test_getPtr(t *testing.T) {
 		a.NoError(err)
 		a.Equal(tc.size, sz)
 		a.NotNil(ptr)
+	}
+}
+
+func TestUserIO_SetData(t *testing.T) {
+	a := assert.New(t)
+
+	for _, tc := range nvmeTcList {
+		tested := UserIO{}
+
+		a.Error(tested.SetData(tc.obj))
+		a.Zero(tested.Data)
+
+		a.NoError(tested.SetData(tc.ptr))
+		a.NotZero(tested.Data)
+	}
+}
+
+func TestUserIO_SetMeta(t *testing.T) {
+	a := assert.New(t)
+
+	for _, tc := range nvmeTcList {
+		tested := UserIO{}
+
+		a.Error(tested.SetMeta(tc.obj))
+		a.Zero(tested.Meta)
+
+		a.NoError(tested.SetMeta(tc.ptr))
+		a.NotZero(tested.Meta)
+	}
+}
+
+func TestPassthruCmd_SetData(t *testing.T) {
+	// PassthruCmd32, Passthru64 and AdminCmd share this the parent PassthruCmd function.
+	a := assert.New(t)
+
+	for _, tc := range nvmeTcList {
+		tested := PassthruCmd{}
+
+		a.Error(tested.SetData(tc.obj))
+		a.Zero(tested.Data)
+		a.Zero(tested.DataLength)
+
+		a.NoError(tested.SetData(tc.ptr))
+		a.NotZero(tested.Data)
+		a.Equal(tc.size, tested.DataLength)
+	}
+}
+
+func TestPassthruCmd_SetMeta(t *testing.T) {
+	// PassthruCmd32, Passthru64 and AdminCmd share this the parent PassthruCmd function.
+	// TODO implementing here
+	a := assert.New(t)
+
+	for _, tc := range nvmeTcList {
+		tested := PassthruCmd{}
+
+		a.Error(tested.SetMeta(tc.obj))
+		a.Zero(tested.Meta)
+		a.Zero(tested.MetaLength)
+
+		a.NoError(tested.SetMeta(tc.ptr))
+		a.NotZero(tested.Meta)
+		a.Equal(tc.size, tested.MetaLength)
 	}
 }

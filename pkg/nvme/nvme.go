@@ -39,21 +39,34 @@ const (
 	AdminGetLBAStatus  = opcode(0x86)
 )
 
+// nvmeCmd interface has two function to set the metadata pointer and data block pointer. To reduce
+// code duplication to set the pointer through object -> interface -> reflection (for type checking)
+// and pointer assign, each command structure should serve these interface function.
 type nvmeCmd interface {
 	SetData(data interface{}) error
 	SetMeta(data interface{}) error
 }
 
+// getPtr convert interface data to it's memory pointer and data length. If input data interface
+// is not a pointer of data structure or slice, getPtr will return the error with nil address (0),
+// and zero length.
 func getPtr(data interface{}) (uintptr, uint32, error) {
 	v := reflect.ValueOf(data)
-	if v.Type().Kind() != reflect.Ptr {
-		return 0, 0, fmt.Errorf("input data is not pointer")
+	t := v.Type()
+
+	if t.Kind() == reflect.Ptr && reflect.Indirect(v).Type().Kind() == reflect.Struct {
+		// 1. Input data is a pointer of structure
+		return v.Pointer(), uint32(reflect.Indirect(v).Type().Size()), nil
+	} else if t.Kind() == reflect.Slice {
+		// 2. Input data is a slice
+		return v.Pointer(), uint32(v.Len()) * uint32(t.Elem().Size()), nil
 	}
 
-	return v.Pointer(), uint32(reflect.Indirect(v).Type().Size()), nil
+	return 0, 0, fmt.Errorf("input data is not a pointer of structure or a byte slice")
 }
 
-type UserIo struct {
+// UserIO is a structure to send normal io command to a NVMe device.
+type UserIO struct {
 	OpCode  opcode
 	Flags   uint8
 	Control uint16
@@ -68,6 +81,29 @@ type UserIo struct {
 	AppMask uint16
 }
 
+// SetData set the memory pointer of data block.
+func (c *UserIO) SetData(data interface{}) error {
+	if ptr, _, err := getPtr(data); err == nil {
+		c.Data = ptr
+		return nil
+	} else {
+		return err
+	}
+}
+
+// SetMeta set the memory pointer of metadata block.
+func (c *UserIO) SetMeta(data interface{}) error {
+	if ptr, _, err := getPtr(data); err == nil {
+		c.Meta = ptr
+		return nil
+	} else {
+		return err
+	}
+}
+
+// PassthruCmd is a base structure for admin and passthru command about the NVMe device. Following
+// Passthru32, Passthru64, and AdminCmd has same structure format without the TimeoutMSec and Result
+// field. So, 3 structures share this basic structure to manipulate as an interface class.
 type PassthruCmd struct {
 	OpCode     opcode
 	Flags      uint8
@@ -87,6 +123,7 @@ type PassthruCmd struct {
 	CDW15      uint32
 }
 
+// SetData set the memory pointer and it's size of data block.
 func (c *PassthruCmd) SetData(data interface{}) error {
 	if ptr, size, err := getPtr(data); err == nil {
 		c.Data, c.DataLength = ptr, size
@@ -96,6 +133,7 @@ func (c *PassthruCmd) SetData(data interface{}) error {
 	}
 }
 
+// SetMeta set the memory pointer and it's size of metadata block.
 func (c *PassthruCmd) SetMeta(data interface{}) error {
 	if ptr, size, err := getPtr(data); err == nil {
 		c.Meta, c.MetaLength = ptr, size
@@ -105,6 +143,8 @@ func (c *PassthruCmd) SetMeta(data interface{}) error {
 	}
 }
 
+// PassthruCmd32 is a passthru command which is same with nvme_passthru_cmd in linux kernel.
+// (please check /include/uapi/linux/nvme_ioctl.h)
 type PassthruCmd32 struct {
 	PassthruCmd
 
@@ -112,14 +152,20 @@ type PassthruCmd32 struct {
 	Result      uint32
 }
 
+// PassthruCmd64 is a passthru command which is same with nvme_passthru_cmd64 in linux kernel.
+// (please check /include/uapi/linux/nvme_ioctl.h)
 type PassthruCmd64 struct {
 	PassthruCmd
-
+	// PassthruCmd32 is a passthru command which is same with nvme_passthru_cmd in linux kernel.
+	// (please check /include/uapi/linux/nvme_ioctl.h)
 	TimeoutMSec uint32
 	_           uint32
 	Result      uint64
 }
 
+// AdminCmd is an admin command which is same with nvme_admin_cmd in linux kernel. But different
+// from linux kernel, AdminCmd is inherited (not aliased) structure from PassthruCmd because of
+// the go language's aliasing rule.
 type AdminCmd struct {
 	PassthruCmd
 
@@ -132,7 +178,7 @@ const (
 
 	iocId          = ioctl.IOCNone | iocNVMeType | (0x40 << ioctl.NrShift)
 	iocAdminCmd    = ioctl.IOCInOut | iocNVMeType | (0x41 << ioctl.NrShift) | uint64(unsafe.Sizeof(AdminCmd{})<<ioctl.SizeShift)
-	iocSubmitIO    = ioctl.IOCIn | iocNVMeType | (0x42 << ioctl.NrShift) | uint64(unsafe.Sizeof(UserIo{})<<ioctl.SizeShift)
+	iocSubmitIO    = ioctl.IOCIn | iocNVMeType | (0x42 << ioctl.NrShift) | uint64(unsafe.Sizeof(UserIO{})<<ioctl.SizeShift)
 	iocIOCmd       = ioctl.IOCInOut | iocNVMeType | (0x43 << ioctl.NrShift) | uint64(unsafe.Sizeof(PassthruCmd32{})<<ioctl.SizeShift)
 	iocReset       = ioctl.IOCNone | iocNVMeType | (0x44 << ioctl.NrShift)
 	iocSubSysReset = ioctl.IOCNone | iocNVMeType | (0x45 << ioctl.NrShift)

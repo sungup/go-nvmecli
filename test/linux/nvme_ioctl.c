@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <sys/ioctl.h>
 
 #include "nvme_ioctl.h"
 
