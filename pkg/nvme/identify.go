@@ -4,10 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/sungup/go-nvme-ioctl/pkg/ioctl"
 	"github.com/sungup/go-nvme-ioctl/pkg/utils"
 	"os"
-	"unsafe"
 )
 
 const (
@@ -25,7 +23,7 @@ const (
 
 // newIdentifyCmd generates an AdminCmd structure to retrieve the NVMe's identify related structure.
 // The cntid and cns will be set on CDW10 and nvmSetId also set on CDW11.
-func newIdentifyCmd(nsid uint32, cntid, cns, nvmSetId uint16, dptr interface{}) (*AdminCmd, error) {
+func newIdentifyCmd(nsid uint32, cntid, cns, nvmSetId uint16) *AdminCmd {
 	cmd := AdminCmd{
 		PassthruCmd: PassthruCmd{
 			OpCode: AdminIdentify,
@@ -37,27 +35,18 @@ func newIdentifyCmd(nsid uint32, cntid, cns, nvmSetId uint16, dptr interface{}) 
 		Result:      0,
 	}
 
-	err := cmd.SetData(dptr)
-
-	return &cmd, err
+	return &cmd
 }
 
 // CtrlIdentify returns 4096B byte slice which contains the controller identify data from an NVMe
 // device. If you want the parsed controller identify data, call the ParseCtrlIdentify using the
 // returned byte slice.
 func CtrlIdentify(file *os.File) ([]byte, error) {
-	identify := make([]byte, ctrlIdentifySz)
-
-	cmd, err := newIdentifyCmd(0, 0, cnsController, 0, identify)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := ioctl.Submit(file, uintptr(iocAdminCmd), uintptr(unsafe.Pointer(cmd))); err == nil {
-		return identify, nil
-	} else {
-		return nil, err
-	}
+	return ioctlAdminCmd(
+		file,
+		ctrlIdentifySz,
+		func() *AdminCmd { return newIdentifyCmd(0, 0, cnsController, 0) },
+	)
 }
 
 // powerStateDesc is an entry of structure for Power State Descriptor in NVMe SPEC. To prevent
@@ -82,6 +71,7 @@ type powerStateDesc struct {
 
 // ctrlIdentify is an structure for the controller identify information of an NVMe device. To
 // prevent externally creation, make it private structure.
+// TODO rebuild ctrlIdentify structure because of 16B unsigned integer parsing
 type ctrlIdentify struct {
 	VID   uint16
 	SSVID uint16
@@ -105,7 +95,7 @@ type ctrlIdentify struct {
 	_         [9]byte // Reserved
 	CNTRLTYPE byte
 
-	FGUID [2]uint64 // TODO make 128byte long int structure
+	FGUID [2]uint64 // TODO make 16byte long int structure
 	CRDT1 uint16
 	CRDT2 uint16
 	CRDT3 uint16
@@ -129,8 +119,8 @@ type ctrlIdentify struct {
 	MTFA    uint16
 	HMPRE   uint32
 	HMMIN   uint32
-	TNVMCAP [2]uint64 // TODO make 128byte long int structure
-	UNVMCAP [2]uint64 // TODO make 128byte long int structure
+	TNVMCAP [2]uint64 // TODO make 16byte long int structure
+	UNVMCAP [2]uint64 // TODO make 16byte long int structure
 
 	RPMBS uint32
 	EDSTT uint16

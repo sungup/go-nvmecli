@@ -3,6 +3,7 @@ package nvme
 import (
 	"fmt"
 	"github.com/sungup/go-nvme-ioctl/pkg/ioctl"
+	"os"
 	"reflect"
 	"unsafe"
 )
@@ -186,3 +187,26 @@ const (
 	iocAdminCmd64  = ioctl.IOCInOut | iocNVMeType | (0x47 << ioctl.NrShift) | uint64(unsafe.Sizeof(PassthruCmd64{})<<ioctl.SizeShift)
 	iocIOCmd64     = ioctl.IOCInOut | iocNVMeType | (0x48 << ioctl.NrShift) | uint64(unsafe.Sizeof(PassthruCmd64{})<<ioctl.SizeShift)
 )
+
+// ioctlAdminCmd issues an admin command using makeCmdFunc. All issues generate buffer, make command
+// and submit ioctl. All this procedure same without the command generation, so this function
+// requires general function format `func() *AdminCmd`. There is no need create data pointer while
+// generate command in makeCmdFunc.
+func ioctlAdminCmd(file *os.File, size int, makeCmdFunc func() *AdminCmd) ([]byte, error) {
+	// 1. generate buffer to return
+	buffer := make([]byte, size)
+
+	// 2. create command and assign data buffer
+	cmd := makeCmdFunc()
+
+	if err := cmd.SetData(buffer); err != nil {
+		return nil, err
+	}
+
+	// 3. issue ioctl
+	if err := ioctl.Submit(file, uintptr(iocAdminCmd), uintptr(unsafe.Pointer(cmd))); err == nil {
+		return buffer, nil
+	} else {
+		return nil, err
+	}
+}
