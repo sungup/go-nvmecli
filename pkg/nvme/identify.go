@@ -25,11 +25,11 @@ const (
 
 // newIdentifyCmd generates an AdminCmd structure to retrieve the NVMe's identify related structure.
 // The cntid and cns will be set on CDW10 and nvmSetId also set on CDW11.
-func newIdentifyCmd(namespaceId uint32, cntid, cns, nvmSetId uint16, dptr interface{}) (*AdminCmd, error) {
+func newIdentifyCmd(nsid uint32, cntid, cns, nvmSetId uint16, dptr interface{}) (*AdminCmd, error) {
 	cmd := AdminCmd{
 		PassthruCmd: PassthruCmd{
 			OpCode: AdminIdentify,
-			NSId:   namespaceId,
+			NSId:   nsid,
 			CDW10:  uint32(cntid)<<16 | uint32(cns),
 			CDW11:  uint32(nvmSetId),
 		},
