@@ -94,6 +94,7 @@ func newGetLogCmd(nsid, dwords uint32, offset uint64, lid, lsp, lsi uint16) *get
 // ----------------------------------- //
 // LID 02h: SMART / Health Information //
 // ----------------------------------- //
+
 // GetLogSMART will retrieve SMART data from NVMe device.
 func GetLogSMART(file *os.File) ([]byte, error) {
 	cmd := newGetLogCmd(0, getLogSMARTSz>>2, 0, logPageSMART, 0, 0)
@@ -224,7 +225,9 @@ func getLogTelemetry(file *os.File, block telemetryDataBlk, lid uint16, lsp uint
 	return data, nil
 }
 
-// GetLogTelemetryHostInit retrieve telemetry data from NVMe device.
+// GetLogTelemetryHostInit retrieves the host-initiated  telemetry data from NVMe device. If host sw
+// call with create=true, GetLogTelemetryHostInit will recreate the host-initiated telemetry data
+// before gathering telemetry data
 func GetLogTelemetryHostInit(file *os.File, block telemetryDataBlk, create bool) ([]byte, error) {
 	var lsp uint16 = 0x00
 	if create {
@@ -234,6 +237,7 @@ func GetLogTelemetryHostInit(file *os.File, block telemetryDataBlk, create bool)
 	return getLogTelemetry(file, block, logPageTelemetryHost, lsp)
 }
 
+// GetLogTelemetryCtrlInit retrieves the controller-initiated telemetry data from NVMe device.
 func GetLogTelemetryCtrlInit(file *os.File, block telemetryDataBlk) ([]byte, error) {
 	return getLogTelemetry(file, block, logPageTelemetryCtrl, 0x0)
 }
@@ -256,10 +260,13 @@ type telemetry struct {
 	ReasonIdentifier           [128]byte // [511:384]
 }
 
+// BlockSize returns the Byte unit each data block size calculating the DataAreaLastBlock.
 func (t *telemetry) BlockSize(block telemetryDataBlk) uint32 {
 	return uint32(t.DataAreaLastBlock[block.index()]) << getLogTelemetryBlkSzShift
 }
 
+// ParseTelemetryHeader parses the telemetry's header information from raw data. If the size of raw
+// data is under 512B, this function raise an error.
 func ParseTelemetryHeader(raw []byte) (*telemetry, error) {
 	if len(raw) < getLogTelemetryHeaderSz {
 		return nil, fmt.Errorf("unexpected Telemetry header size: %d", len(raw))
