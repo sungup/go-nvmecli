@@ -40,6 +40,10 @@ const (
 	AdminGetLBAStatus  = opcode(0x86)
 )
 
+const (
+	maxAdminCmdPageSz = uint32(4096)
+)
+
 // nvmeCmd interface has two function to set the metadata pointer and data block pointer. To reduce
 // code duplication to set the pointer through object -> interface -> reflection (for type checking)
 // and pointer assign, each command structure should serve these interface function.

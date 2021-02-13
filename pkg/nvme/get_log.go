@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/sungup/go-nvme-ioctl/pkg/ioctl"
 	"github.com/sungup/go-nvme-ioctl/pkg/utils"
 	"math"
 	"os"
+	"unsafe"
 )
 
 const (
@@ -26,8 +28,42 @@ const (
 	logPageLBAStatusInfo  = uint16(0x0E)
 	logPageEndurGrpEvt    = uint16(0x0F)
 
-	getLogSMARTSz = 512
+	getLogSMARTSz             = 512
+	getLogTelemetryHeaderSz   = 512
+	getLogTelemetryBlkSzShift = 9
+
+	MaskUint4   = uint32(1<<4 - 1)
+	MaskUint8   = uint32(math.MaxUint8)
+	MaskUint16  = uint32(math.MaxUint16)
+	MaskUint32  = uint64(math.MaxUint32)
+	UMaskUint16 = ^MaskUint16
+	ShiftUint8  = 8
+	ShiftUint16 = 16
+	ShiftUint32 = 32
 )
+
+type getLogCmd struct {
+	AdminCmd
+}
+
+// SetDWords changes the dwords fields (NUMDL and NUMDU).
+func (l *getLogCmd) SetDWords(dwords uint32) {
+	l.CDW10 = (dwords << ShiftUint16) | (l.CDW10 & MaskUint16)
+	l.CDW11 = (dwords >> ShiftUint16) | (l.CDW11 & UMaskUint16)
+}
+
+// SetDWords changes the offset fields (LPOL and LPOU).
+func (l *getLogCmd) SetOffset(offset uint64) {
+	l.CDW12 = uint32(offset >> ShiftUint32)
+	l.CDW13 = uint32(offset & MaskUint32)
+}
+
+// SetLSP change the 4bit Log Specific Identifier.
+func (l *getLogCmd) SetLSP(lsp uint16) {
+	const UMaskLSP = ^(MaskUint4 << ShiftUint8)
+
+	l.CDW10 = (l.CDW10 & UMaskLSP) | (uint32(lsp)&MaskUint4)<<ShiftUint8
+}
 
 // newGetLogCmd generate an AdminCmd structure to retrieve the NVMe's log pages. To issue a get-log
 // command, the size and offset should be set for the large size log data like the telemetry.
@@ -36,40 +72,33 @@ const (
 // will return with undefined results beyond the end of the log page.
 // Host software should clear the RAE bit to '0' for log pages that are not used with Asynchronous
 // Events.
-func newGetLogCmd(nsid, dwords uint32, offset uint64, lid, lsp, lsi uint16) *AdminCmd {
-	const (
-		MaskUint4   = uint32(1<<4 - 1)
-		MaskUint8   = uint32(math.MaxUint8)
-		MaskUint16  = uint32(math.MaxUint16)
-		MaskUint32  = uint64(math.MaxUint32)
-		ShiftUint8  = 8
-		ShiftUint16 = 16
-		ShiftUint32 = 32
-	)
-
-	cmd := AdminCmd{
-		PassthruCmd: PassthruCmd{
-			OpCode: AdminGetLogPage,
-			NSId:   nsid,
-			CDW10:  dwords<<ShiftUint16 | (uint32(lsp)&MaskUint4)<<ShiftUint8 | uint32(lid)&MaskUint8,
-			CDW11:  uint32(lsi)<<ShiftUint16 | dwords>>ShiftUint16,
-			CDW12:  uint32(offset >> ShiftUint32), // Log Page Offset Lower
-			CDW13:  uint32(offset & MaskUint32),   // Log Page Offset Upper
+func newGetLogCmd(nsid, dwords uint32, offset uint64, lid, lsp, lsi uint16) *getLogCmd {
+	cmd := getLogCmd{
+		AdminCmd{
+			PassthruCmd: PassthruCmd{
+				OpCode: AdminGetLogPage,
+				NSId:   nsid,
+				CDW10:  dwords<<ShiftUint16 | (uint32(lsp)&MaskUint4)<<ShiftUint8 | uint32(lid)&MaskUint8,
+				CDW11:  uint32(lsi)<<ShiftUint16 | dwords>>ShiftUint16,
+				CDW12:  uint32(offset >> ShiftUint32), // Log Page Offset Lower
+				CDW13:  uint32(offset & MaskUint32),   // Log Page Offset Upper
+			},
+			TimeoutMSec: 0,
+			Result:      0,
 		},
-		TimeoutMSec: 0,
-		Result:      0,
 	}
 
 	return &cmd
 }
 
+// ----------------------------------- //
+// LID 02h: SMART / Health Information //
+// ----------------------------------- //
 // GetLogSMART will retrieve SMART data from NVMe device.
 func GetLogSMART(file *os.File) ([]byte, error) {
-	return ioctlAdminCmd(
-		file,
-		getLogSMARTSz,
-		func() *AdminCmd { return newGetLogCmd(0, getLogSMARTSz>>2, 0, logPageSMART, 0, 0) },
-	)
+	cmd := newGetLogCmd(0, getLogSMARTSz>>2, 0, logPageSMART, 0, 0)
+
+	return ioctlAdminCmd(file, getLogSMARTSz, func() *AdminCmd { return &cmd.AdminCmd })
 }
 
 // TODO rebuild SMART structure because of 16B unsigned integer parsing
@@ -120,27 +149,126 @@ func ParseSMART(raw []byte) (*smart, error) {
 	}
 }
 
-func GetLogTelemetryHostInit(file *os.File, dataBlock uint) {
-	// TODO implementing here
+// ---------------------------------------------------------------------------- //
+// LID 07h: Telemetry Host-Initiative, LID 08h: Telemetry Controller-Initiative //
+// ---------------------------------------------------------------------------- //
+type telemetryDataBlk int
+
+const (
+	DataBlock1 = telemetryDataBlk(1)
+	DataBlock2 = telemetryDataBlk(2)
+	DataBlock3 = telemetryDataBlk(3)
+)
+
+// index function change the telemetryDataBlk macro to index of telemetry.DataBlockLast's index
+func (b telemetryDataBlk) index() int {
+	return int(b) - 1
 }
 
-func GetLogTelemetryCtrlInit(file *os.File, dataBlock uint) {
-	// TODO implementing here
+// getLogTelemetry retrieve telemetry data from NVMe device. Host-initiated and Ctrl-initiated
+// telemetry has same format except lsp field, so this function receive the lid to determine the
+// get-log Log Identifier and the lsp to create telemetry data for the Host-initiated telemetry.
+func getLogTelemetry(file *os.File, block telemetryDataBlk, lid uint16, lsp uint16) ([]byte, error) {
+	var (
+		cmd    *getLogCmd
+		header *telemetry
+		err    error
+		buffer []byte
+	)
+
+	cmd = newGetLogCmd(0, getLogTelemetryHeaderSz>>2, 0, lid, lsp, 0)
+
+	// 1. get telemetry header logs with lsp value
+	buffer, err = ioctlAdminCmd(file, getLogTelemetryHeaderSz, func() *AdminCmd { return &cmd.AdminCmd })
+	if err != nil {
+		return nil, err
+	}
+
+	if header, err = ParseTelemetryHeader(buffer); err != nil {
+		return nil, err
+	}
+
+	// 2. calculate retrieving data size, create return data and resize buffer
+	dataSz := header.BlockSize(block)
+	offset := uint32(getLogTelemetryHeaderSz)
+	fetchSz := maxAdminCmdPageSz
+
+	data := make([]byte, 0, getLogTelemetryHeaderSz+dataSz)
+	data = append(data, buffer...)
+
+	buffer = make([]byte, fetchSz)
+	_ = cmd.SetData(buffer) // resize buffer
+	cmd.SetDWords(fetchSz >> 2)
+	cmd.SetLSP(0x0) // clear LSP field for read only operation
+
+	// 3. retrieving telemetry log by basic page size
+	for offset < dataSz {
+		// 3-1. update offset and dwords of getLogCmd
+		if dataSz < offset+fetchSz {
+			fetchSz = dataSz - offset
+			cmd.SetDWords(fetchSz >> 2)
+		}
+		cmd.SetOffset(uint64(offset))
+
+		// 3-2. resend ioctl to device
+		if err := ioctl.Submit(file, uintptr(iocAdminCmd), uintptr(unsafe.Pointer(cmd))); err != nil {
+			return nil, err
+		}
+
+		data = append(data, buffer[:fetchSz]...)
+
+		// 3-3. move next offset
+		offset += fetchSz
+	}
+
+	return data, nil
+}
+
+// GetLogTelemetryHostInit retrieve telemetry data from NVMe device.
+func GetLogTelemetryHostInit(file *os.File, block telemetryDataBlk, create bool) ([]byte, error) {
+	var lsp uint16 = 0x00
+	if create {
+		lsp = 0x01
+	}
+
+	return getLogTelemetry(file, block, logPageTelemetryHost, lsp)
+}
+
+func GetLogTelemetryCtrlInit(file *os.File, block telemetryDataBlk) ([]byte, error) {
+	return getLogTelemetry(file, block, logPageTelemetryCtrl, 0x0)
 }
 
 // telemetry is a header of the telemetry page. To retrieve the telemetry log, host SW should call
 // ioctl with only header to generate and check the data block size. After that, host SW can
-// retrieve the telemetry log with one more ioctl command.
+// retrieve the telemetry log with one more ioctl command. Host-initiated log and Controller-
+// initiated log have same format.
 type telemetry struct {
-	Identifier byte
-	_          [4]byte // reserved
-	IEEE       [3]byte
+	Identifier byte    // [00]
+	_          [4]byte // [04:01] reserved
+	IEEE       [3]byte // [07:05]
 
-	DataAreaLastBlock [3]uint16
+	DataAreaLastBlock [3]uint16 // [13:08]
 
-	_ [368]byte //reserved
+	_ [368]byte // [381:14] reserved
 
-	CtrlInitiativeAvailable    uint8
-	CtrlInitiativeGenerationNo uint8
-	ReasonIdentifier           [128]byte
+	CtrlInitiativeAvailable    uint8     // [382]
+	CtrlInitiativeGenerationNo uint8     // [383]
+	ReasonIdentifier           [128]byte // [511:384]
+}
+
+func (t *telemetry) BlockSize(block telemetryDataBlk) uint32 {
+	return uint32(t.DataAreaLastBlock[block.index()]) << getLogTelemetryBlkSzShift
+}
+
+func ParseTelemetryHeader(raw []byte) (*telemetry, error) {
+	if len(raw) < getLogTelemetryHeaderSz {
+		return nil, fmt.Errorf("unexpected Telemetry header size: %d", len(raw))
+	}
+
+	t := telemetry{}
+	if err := binary.Read(bytes.NewReader(raw), utils.SystemEndian, &t); err == nil {
+		return &t, nil
+	} else {
+		return nil, err
+	}
 }

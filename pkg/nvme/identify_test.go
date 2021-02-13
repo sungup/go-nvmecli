@@ -6,6 +6,12 @@ import (
 	"unsafe"
 )
 
+const (
+	expectedCNTId    = 0xa
+	expectedCNS      = cnsNamespace
+	expectedNvmSetId = 0xF
+)
+
 func TestCtrlIdentifySize(t *testing.T) {
 	a := assert.New(t)
 
@@ -14,13 +20,6 @@ func TestCtrlIdentifySize(t *testing.T) {
 }
 
 func TestNewIdentifyCmd(t *testing.T) {
-	const (
-		expectedNSId     = 1
-		expectedCNTId    = 0xa
-		expectedCNS      = cnsNamespace
-		expectedNvmSetId = 0xF
-	)
-
 	a := assert.New(t)
 
 	tested := newIdentifyCmd(expectedNSId, expectedCNTId, expectedCNS, expectedNvmSetId)
