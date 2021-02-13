@@ -40,13 +40,13 @@ func TestGetLogCmd_SetDWords(t *testing.T) {
 
 	// CDW10 check
 	a.NotEqual(origin.CDW10, tested.CDW10)
-	a.Equal(origin.CDW10&MaskUint16, tested.CDW10&MaskUint16) // keep lsp, lid field (lower 16bit)
-	a.Equal(UMaskUint16, origin.CDW10^tested.CDW10)           // XOR between origin and tested should be 0xFFFF0000
+	a.Equal(origin.CDW10&maskUint16, tested.CDW10&maskUint16) // keep lsp, lid field (lower 16bit)
+	a.Equal(umaskUint16, origin.CDW10^tested.CDW10)           // XOR between origin and tested should be 0xFFFF0000
 
 	// CDW11 check
 	a.NotEqual(origin.CDW11, tested.CDW11)
-	a.Equal(origin.CDW11&UMaskUint16, tested.CDW11&UMaskUint16) // keep lsi field (upper 16bit)
-	a.Equal(MaskUint16, origin.CDW11^tested.CDW11)              // XOR between origin and tested should be 0x0000FFFF
+	a.Equal(origin.CDW11&umaskUint16, tested.CDW11&umaskUint16) // keep lsi field (upper 16bit)
+	a.Equal(maskUint16, origin.CDW11^tested.CDW11)              // XOR between origin and tested should be 0x0000FFFF
 
 	// changed value check
 	a.Equal(^expectedDWords, (tested.CDW10>>16)|(tested.CDW11<<16))
@@ -84,7 +84,7 @@ func TestGetLogCmd_SetOffset(t *testing.T) {
 func TestGetLogCmd_SetLSP(t *testing.T) {
 	a := assert.New(t)
 
-	const UMaskLSP = ^(MaskUint4 << ShiftUint8)
+	const UMaskLSP = ^(maskUint4 << shiftUint8)
 
 	// 1. create same get-log command
 	origin := newGetLogCmd(expectedNSId, expectedDWords, expectedOffset, expectedLID, expectedLSP, expectedLSI)
@@ -101,12 +101,12 @@ func TestGetLogCmd_SetLSP(t *testing.T) {
 
 	// CDW10 Check
 	a.NotEqual(origin.CDW10, tested.CDW10)
-	a.Equal(MaskUint4, (origin.CDW10^tested.CDW10)>>8)
+	a.Equal(maskUint4, (origin.CDW10^tested.CDW10)>>8)
 	a.Equal(origin.CDW10&UMaskLSP, tested.CDW10&UMaskLSP)
 
-	// Check set value and masked out dirty bits. "uint32(^expectedLSP) & MaskUint4" will be clean
+	// Check set value and masked out dirty bits. "uint32(^expectedLSP) & maskUint4" will be clean
 	// 4bit value.
-	a.Equal(uint32(^expectedLSP)&MaskUint4, (tested.CDW10>>8)&MaskUint4)
+	a.Equal(uint32(^expectedLSP)&maskUint4, (tested.CDW10>>8)&maskUint4)
 }
 
 func TestSMARTSize(t *testing.T) {

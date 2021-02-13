@@ -161,8 +161,7 @@ type PassthruCmd32 struct {
 // (please check /include/uapi/linux/nvme_ioctl.h)
 type PassthruCmd64 struct {
 	PassthruCmd
-	// PassthruCmd32 is a passthru command which is same with nvme_passthru_cmd in linux kernel.
-	// (please check /include/uapi/linux/nvme_ioctl.h)
+
 	TimeoutMSec uint32
 	_           uint32
 	Result      uint64

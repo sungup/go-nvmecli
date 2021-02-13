@@ -32,14 +32,14 @@ const (
 	getLogTelemetryHeaderSz   = 512
 	getLogTelemetryBlkSzShift = 9
 
-	MaskUint4   = uint32(1<<4 - 1)
-	MaskUint8   = uint32(math.MaxUint8)
-	MaskUint16  = uint32(math.MaxUint16)
-	MaskUint32  = uint64(math.MaxUint32)
-	UMaskUint16 = ^MaskUint16
-	ShiftUint8  = 8
-	ShiftUint16 = 16
-	ShiftUint32 = 32
+	maskUint4   = uint32(1<<4 - 1)
+	maskUint8   = uint32(math.MaxUint8)
+	maskUint16  = uint32(math.MaxUint16)
+	maskUint32  = uint64(math.MaxUint32)
+	umaskUint16 = ^maskUint16
+	shiftUint8  = 8
+	shiftUint16 = 16
+	shiftUint32 = 32
 )
 
 type getLogCmd struct {
@@ -48,21 +48,21 @@ type getLogCmd struct {
 
 // SetDWords changes the dwords fields (NUMDL and NUMDU).
 func (l *getLogCmd) SetDWords(dwords uint32) {
-	l.CDW10 = (dwords << ShiftUint16) | (l.CDW10 & MaskUint16)
-	l.CDW11 = (dwords >> ShiftUint16) | (l.CDW11 & UMaskUint16)
+	l.CDW10 = (dwords << shiftUint16) | (l.CDW10 & maskUint16)
+	l.CDW11 = (dwords >> shiftUint16) | (l.CDW11 & umaskUint16)
 }
 
 // SetDWords changes the offset fields (LPOL and LPOU).
 func (l *getLogCmd) SetOffset(offset uint64) {
-	l.CDW12 = uint32(offset >> ShiftUint32)
-	l.CDW13 = uint32(offset & MaskUint32)
+	l.CDW12 = uint32(offset >> shiftUint32)
+	l.CDW13 = uint32(offset & maskUint32)
 }
 
 // SetLSP change the 4bit Log Specific Identifier.
 func (l *getLogCmd) SetLSP(lsp uint16) {
-	const UMaskLSP = ^(MaskUint4 << ShiftUint8)
+	const UMaskLSP = ^(maskUint4 << shiftUint8)
 
-	l.CDW10 = (l.CDW10 & UMaskLSP) | (uint32(lsp)&MaskUint4)<<ShiftUint8
+	l.CDW10 = (l.CDW10 & UMaskLSP) | (uint32(lsp)&maskUint4)<<shiftUint8
 }
 
 // newGetLogCmd generate an AdminCmd structure to retrieve the NVMe's log pages. To issue a get-log
@@ -78,10 +78,10 @@ func newGetLogCmd(nsid, dwords uint32, offset uint64, lid, lsp, lsi uint16) *get
 			PassthruCmd: PassthruCmd{
 				OpCode: AdminGetLogPage,
 				NSId:   nsid,
-				CDW10:  dwords<<ShiftUint16 | (uint32(lsp)&MaskUint4)<<ShiftUint8 | uint32(lid)&MaskUint8,
-				CDW11:  uint32(lsi)<<ShiftUint16 | dwords>>ShiftUint16,
-				CDW12:  uint32(offset >> ShiftUint32), // Log Page Offset Lower
-				CDW13:  uint32(offset & MaskUint32),   // Log Page Offset Upper
+				CDW10:  dwords<<shiftUint16 | (uint32(lsp)&maskUint4)<<shiftUint8 | uint32(lid)&maskUint8,
+				CDW11:  uint32(lsi)<<shiftUint16 | dwords>>shiftUint16,
+				CDW12:  uint32(offset >> shiftUint32), // Log Page Offset Lower
+				CDW13:  uint32(offset & maskUint32),   // Log Page Offset Upper
 			},
 			TimeoutMSec: 0,
 			Result:      0,
