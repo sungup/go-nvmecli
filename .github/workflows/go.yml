@@ -1,0 +1,33 @@
+name: Test
+on: [push]
+env:
+  GOOS: "linux"
+  GOARCH: "amd64"
+  GOPATH: "/home/runner/go"
+  REPO_NAME: github.com/${{ github.repository }}
+
+jobs:
+  test:
+    name: Unit Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Go 1.13
+        uses: actions/setup-go@v2.1.3
+        with:
+          go-version: 1.13
+        id: go
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+
+      - name: Setup Go build environment
+        run: |
+          mkdir -p $(dirname ${GOPATH}/src/${REPO_NAME})
+          ln -svf ${{ github.workspace }} ${GOPATH}/src/${REPO_NAME}
+
+      - name: Unit Test
+        run: |
+          cd $GOPATH/src/$REPO_NAME
+          go vet $(go list ./... | grep -v /vendor/)
+          go test -race $(go list ./... | grep -v /vendor/)
