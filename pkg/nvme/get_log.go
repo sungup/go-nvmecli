@@ -96,6 +96,39 @@ func newGetLogCmd(nsid uint32, offset uint64, lid, lsp, lsi uint16, v interface{
 	}
 }
 
+// -------------------------- //
+// LID 01h: Error Information //
+// -------------------------- //
+
+// GetLogErrorEntry will retrieve all NVMe error log entries from NVMe device
+func GetLogErrorEntry(file *os.File) ([]errorEntry, error) {
+	// TODO implementing here
+	return nil, fmt.Errorf("unimplemented function")
+}
+
+type errorEntry struct {
+	ErrorCount uint64
+
+	SqID uint16
+	CqID uint16
+
+	StatusField      uint16
+	ParamErrLocation uint16
+
+	LBA       uint64
+	Namespace uint32
+
+	VendorSpecificEnable uint8
+	TransportType        uint8
+
+	_ [2]byte
+
+	CommandSpecific   uint64
+	TransportSpecific uint16
+
+	_ [22]byte
+}
+
 // ----------------------------------- //
 // LID 02h: SMART / Health Information //
 // ----------------------------------- //

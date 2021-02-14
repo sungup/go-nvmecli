@@ -139,6 +139,12 @@ func TestNewGetLogCmd(t *testing.T) {
 	a.Error(err)
 }
 
+func TestErrorEntrySize(t *testing.T) {
+	a := assert.New(t)
+
+	a.Equal(uintptr(64), unsafe.Sizeof(errorEntry{}))
+}
+
 func TestSMARTSize(t *testing.T) {
 	a := assert.New(t)
 
