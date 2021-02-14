@@ -15,20 +15,6 @@ const (
 	expectedLSI    = uint16(0xA)
 )
 
-func TestNewGetLogCmd(t *testing.T) {
-	a := assert.New(t)
-
-	tested := newGetLogCmd(expectedNSId, expectedDWords, expectedOffset, expectedLID, expectedLSP, expectedLSI)
-	a.NotNil(tested)
-	a.Equal(AdminGetLogPage, tested.OpCode)
-	a.Equal(uint32(expectedNSId), tested.NSId)
-	a.Equal(expectedDWords, (tested.CDW10>>16)|(tested.CDW11<<16))
-	a.Equal(expectedOffset, (uint64(tested.CDW12)<<32)|uint64(tested.CDW13))
-	a.Equal(expectedLID, uint16(math.MaxUint8&tested.CDW10))
-	a.Equal(expectedLSP, uint16((tested.CDW10<<16)>>24))
-	a.Equal(expectedLSI, uint16(tested.CDW11>>16))
-}
-
 func TestGetLogCmd_SetDWords(t *testing.T) {
 	a := assert.New(t)
 
@@ -107,6 +93,20 @@ func TestGetLogCmd_SetLSP(t *testing.T) {
 	// Check set value and masked out dirty bits. "uint32(^expectedLSP) & maskUint4" will be clean
 	// 4bit value.
 	a.Equal(uint32(^expectedLSP)&maskUint4, (tested.CDW10>>8)&maskUint4)
+}
+
+func TestNewGetLogCmd(t *testing.T) {
+	a := assert.New(t)
+
+	tested := newGetLogCmd(expectedNSId, expectedDWords, expectedOffset, expectedLID, expectedLSP, expectedLSI)
+	a.NotNil(tested)
+	a.Equal(AdminGetLogPage, tested.OpCode)
+	a.Equal(uint32(expectedNSId), tested.NSId)
+	a.Equal(expectedDWords, (tested.CDW10>>16)|(tested.CDW11<<16))
+	a.Equal(expectedOffset, (uint64(tested.CDW12)<<32)|uint64(tested.CDW13))
+	a.Equal(expectedLID, uint16(math.MaxUint8&tested.CDW10))
+	a.Equal(expectedLSP, uint16((tested.CDW10<<16)>>24))
+	a.Equal(expectedLSI, uint16(tested.CDW11>>16))
 }
 
 func TestSMARTSize(t *testing.T) {

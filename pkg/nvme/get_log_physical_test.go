@@ -25,37 +25,73 @@ func TestParseSMART(t *testing.T) {
 	dev, _ := os.Open(targetDevice)
 
 	buffer, _ := GetLogSMART(dev)
-	smart, err := ParseSMART(buffer)
+
+	// check invalid size error
+	smart, err := ParseSMART(buffer[1:])
+	a.Error(err)
+	a.Nil(smart)
+
+	// check normal parsing
+	smart, err = ParseSMART(buffer)
 	a.NoError(err)
+	a.NotNil(smart)
 
 	a.NotZero(smart.AvailableSpareThreshold)
 }
 
-func TestTelemetryHeader(t *testing.T) {
+func TestGetLogTelemetry(t *testing.T) {
+	/* nothing to do, because ctrl/host init function will call it with their specific param */
+}
+
+func TestGetLogTelemetryHostInit(t *testing.T) {
 	a := assert.New(t)
 
 	dev, _ := os.Open(targetDevice)
 
-	buffer, err := ioctlAdminCmd(
-		dev,
-		getLogTelemetryHeaderSz,
-		func() *AdminCmd {
-			cmd := newGetLogCmd(0, getLogTelemetryHeaderSz>>2, 0, logPageTelemetryHost, 0x01, 0)
-			return &cmd.AdminCmd
-		},
-	)
-
-	a.NotEmpty(buffer)
+	// My Seagate NVMe device doesn't support telemetry, but there is no error to call the get-log
+	// telemetry operation. So, total length of telemetry data is 512B for the telemetry header.
+	buffer, err := GetLogTelemetryHostInit(dev, DataBlock3, true)
 	a.NoError(err)
+	a.NotNil(buffer)
+	a.Len(buffer, 512)
+}
+
+func TestGetLogTelemetryCtrlInit(t *testing.T) {
+	a := assert.New(t)
+
+	dev, _ := os.Open(targetDevice)
+
+	// My Seagate NVMe device doesn't support telemetry, but there is no error to call the get-log
+	// telemetry operation. So, total length of telemetry data is 512B for the telemetry header.
+	buffer, err := GetLogTelemetryCtrlInit(dev, DataBlock3)
+	a.NoError(err)
+	a.NotNil(buffer)
+	a.Len(buffer, 512)
+}
+
+func TestParseTelemetryHeader(t *testing.T) {
+	a := assert.New(t)
+
+	dev, _ := os.Open(targetDevice)
+
+	buffer, _ := GetLogTelemetryCtrlInit(dev, DataBlock3)
+
+	// check invalid size error
+	tested, err := ParseTelemetryHeader(buffer[1:])
+	a.Error(err)
+	a.Nil(tested)
+
+	// check normal parsing
+	tested, err = ParseTelemetryHeader(buffer)
+	a.NoError(err)
+	a.NotNil(tested)
 
 	// make blocking telemetry checking interface because my Seagate NVMe device doesn't
 	// support telemetry feature.
 	/*
-		telemetry, err := ParseTelemetryHeader(buffer)
-		a.NoError(err)
-		a.Equal(logPageTelemetryHost, uint16(telemetry.Identifier))
+		a.Equal(logPageTelemetryHost, uint16(tested.Identifier))
 
-		t.Log(string(telemetry.ReasonIdentifier[:]))
-		t.Log(telemetry.DataAreaLastBlock)
+		t.Log(string(tested.ReasonIdentifier[:]))
+		t.Log(tested.DataAreaLastBlock)
 	*/
 }
