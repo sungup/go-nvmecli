@@ -23,7 +23,7 @@ const (
 
 // newIdentifyCmd generates an AdminCmd structure to retrieve the NVMe's identify related structure.
 // The cntid and cns will be set on CDW10 and nvmSetId also set on CDW11.
-func newIdentifyCmd(nsid uint32, cntid, cns, nvmSetId uint16) *AdminCmd {
+func newIdentifyCmd(nsid uint32, cntid, cns, nvmSetId uint16, v interface{}) (*AdminCmd, error) {
 	cmd := AdminCmd{
 		PassthruCmd: PassthruCmd{
 			OpCode: AdminIdentify,
@@ -35,18 +35,23 @@ func newIdentifyCmd(nsid uint32, cntid, cns, nvmSetId uint16) *AdminCmd {
 		Result:      0,
 	}
 
-	return &cmd
+	if err := cmd.SetData(v); err != nil {
+		return nil, err
+	} else {
+		return &cmd, nil
+	}
+
 }
 
 // CtrlIdentify returns 4096B byte slice which contains the controller identify data from an NVMe
 // device. If you want the parsed controller identify data, call the ParseCtrlIdentify using the
 // returned byte slice.
-func CtrlIdentify(file *os.File) ([]byte, error) {
-	return ioctlAdminCmd(
-		file,
-		ctrlIdentifySz,
-		func() *AdminCmd { return newIdentifyCmd(0, 0, cnsController, 0) },
-	)
+func CtrlIdentify(file *os.File, v interface{}) error {
+	if cmd, err := newIdentifyCmd(0, 0, cnsController, 0, v); err != nil {
+		return err
+	} else {
+		return ioctlAdminCmd(file, func() *AdminCmd { return cmd })
+	}
 }
 
 // powerStateDesc is an entry of structure for Power State Descriptor in NVMe SPEC. To prevent

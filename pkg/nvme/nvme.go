@@ -195,21 +195,10 @@ const (
 // and submit ioctl. All this procedure same without the command generation, so this function
 // requires general function format `func() *AdminCmd`. There is no need create data pointer while
 // generate command in makeCmdFunc.
-func ioctlAdminCmd(file *os.File, size int, makeCmdFunc func() *AdminCmd) ([]byte, error) {
-	// 1. generate buffer to return
-	buffer := make([]byte, size)
-
-	// 2. create command and assign data buffer
+func ioctlAdminCmd(file *os.File, makeCmdFunc func() *AdminCmd) error {
+	// 1. create command and assign data buffer
 	cmd := makeCmdFunc()
 
-	if err := cmd.SetData(buffer); err != nil {
-		return nil, err
-	}
-
-	// 3. issue ioctl
-	if err := ioctl.Submit(file, uintptr(iocAdminCmd), uintptr(unsafe.Pointer(cmd))); err == nil {
-		return buffer, nil
-	} else {
-		return nil, err
-	}
+	// 2. issue ioctl
+	return ioctl.Submit(file, uintptr(iocAdminCmd), uintptr(unsafe.Pointer(cmd)))
 }

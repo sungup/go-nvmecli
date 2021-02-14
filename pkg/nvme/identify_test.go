@@ -2,6 +2,7 @@ package nvme
 
 import (
 	"github.com/stretchr/testify/assert"
+	"reflect"
 	"testing"
 	"unsafe"
 )
@@ -22,10 +23,32 @@ func TestCtrlIdentifySize(t *testing.T) {
 func TestNewIdentifyCmd(t *testing.T) {
 	a := assert.New(t)
 
-	tested := newIdentifyCmd(expectedNSId, expectedCNTId, expectedCNS, expectedNvmSetId)
-	a.NotNil(tested)
-	a.Equal(AdminIdentify, tested.OpCode)
-	a.Equal(uint32(expectedCNTId)<<16|uint32(expectedCNS), tested.CDW10)
-	a.Equal(uint32(expectedNvmSetId), tested.CDW11)
-	a.Equal(uint32(expectedNSId), tested.NSId)
+	const expectedSz = uint32(32)
+
+	tcList := []interface{}{
+		make([]byte, expectedSz),
+		&struct{ buffer [expectedSz]byte }{},
+	}
+
+	// test valid case
+	for _, tc := range tcList {
+		tested, err := newIdentifyCmd(expectedNSId, expectedCNTId, expectedCNS, expectedNvmSetId, tc)
+		a.NotNil(tested)
+		a.NoError(err)
+		a.Equal(AdminIdentify, tested.OpCode)
+		a.Equal(uint32(expectedCNTId)<<16|uint32(expectedCNS), tested.CDW10)
+		a.Equal(uint32(expectedNvmSetId), tested.CDW11)
+		a.Equal(uint32(expectedNSId), tested.NSId)
+		a.Equal(expectedSz, tested.DataLength)
+		a.Equal(reflect.ValueOf(tc).Pointer(), tested.Data)
+	}
+
+	// test invalid case
+	tc := struct {
+		buffer [expectedSz]byte
+	}{}
+
+	tested, err := newIdentifyCmd(expectedNSId, expectedCNTId, expectedCNS, expectedNvmSetId, tc)
+	a.Nil(tested)
+	a.Error(err)
 }

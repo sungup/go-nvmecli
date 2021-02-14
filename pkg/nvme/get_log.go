@@ -72,14 +72,14 @@ func (l *getLogCmd) SetLSP(lsp uint16) {
 // will return with undefined results beyond the end of the log page.
 // Host software should clear the RAE bit to '0' for log pages that are not used with Asynchronous
 // Events.
-func newGetLogCmd(nsid, dwords uint32, offset uint64, lid, lsp, lsi uint16) *getLogCmd {
+func newGetLogCmd(nsid uint32, offset uint64, lid, lsp, lsi uint16, v interface{}) (*getLogCmd, error) {
 	cmd := getLogCmd{
 		AdminCmd{
 			PassthruCmd: PassthruCmd{
 				OpCode: AdminGetLogPage,
 				NSId:   nsid,
-				CDW10:  dwords<<shiftUint16 | (uint32(lsp)&maskUint4)<<shiftUint8 | uint32(lid)&maskUint8,
-				CDW11:  uint32(lsi)<<shiftUint16 | dwords>>shiftUint16,
+				CDW10:  (uint32(lsp)&maskUint4)<<shiftUint8 | uint32(lid)&maskUint8,
+				CDW11:  uint32(lsi) << shiftUint16,
 				CDW12:  uint32(offset >> shiftUint32), // Log Page Offset Lower
 				CDW13:  uint32(offset & maskUint32),   // Log Page Offset Upper
 			},
@@ -88,7 +88,12 @@ func newGetLogCmd(nsid, dwords uint32, offset uint64, lid, lsp, lsi uint16) *get
 		},
 	}
 
-	return &cmd
+	if err := cmd.SetData(v); err != nil {
+		return nil, err
+	} else {
+		cmd.SetDWords(cmd.DataLength >> 2)
+		return &cmd, nil
+	}
 }
 
 // ----------------------------------- //
@@ -96,10 +101,12 @@ func newGetLogCmd(nsid, dwords uint32, offset uint64, lid, lsp, lsi uint16) *get
 // ----------------------------------- //
 
 // GetLogSMART will retrieve SMART data from NVMe device.
-func GetLogSMART(file *os.File) ([]byte, error) {
-	cmd := newGetLogCmd(0, getLogSMARTSz>>2, 0, logPageSMART, 0, 0)
-
-	return ioctlAdminCmd(file, getLogSMARTSz, func() *AdminCmd { return &cmd.AdminCmd })
+func GetLogSMART(file *os.File, v interface{}) error {
+	if cmd, err := newGetLogCmd(0, 0, logPageSMART, 0, 0, v); err != nil {
+		return err
+	} else {
+		return ioctlAdminCmd(file, func() *AdminCmd { return &cmd.AdminCmd })
+	}
 }
 
 // TODO rebuild SMART structure because of 16B unsigned integer parsing
@@ -171,17 +178,20 @@ func (b telemetryDataBlk) index() int {
 // get-log Log Identifier and the lsp to create telemetry data for the Host-initiated telemetry.
 func getLogTelemetry(file *os.File, block telemetryDataBlk, lid uint16, lsp uint16) ([]byte, error) {
 	var (
-		cmd    *getLogCmd
 		header *telemetry
 		err    error
-		buffer []byte
 	)
 
-	cmd = newGetLogCmd(0, getLogTelemetryHeaderSz>>2, 0, lid, lsp, 0)
+	const request = uintptr(iocAdminCmd)
+
+	buffer := make([]byte, maxAdminCmdPageSz)
+	cmd, _ := newGetLogCmd(0, 0, lid, lsp, 0, buffer)
+	cmdPtr := uintptr(unsafe.Pointer(cmd))
 
 	// 1. get telemetry header logs with lsp value
-	buffer, err = ioctlAdminCmd(file, getLogTelemetryHeaderSz, func() *AdminCmd { return &cmd.AdminCmd })
-	if err != nil {
+	cmd.SetDWords(getLogTelemetryHeaderSz >> 2)
+
+	if err = ioctl.Submit(file, request, cmdPtr); err != nil {
 		return nil, err
 	}
 
@@ -194,13 +204,11 @@ func getLogTelemetry(file *os.File, block telemetryDataBlk, lid uint16, lsp uint
 	offset := uint32(getLogTelemetryHeaderSz)
 	fetchSz := maxAdminCmdPageSz
 
-	data := make([]byte, 0, getLogTelemetryHeaderSz+dataSz)
-	data = append(data, buffer...)
-
-	buffer = make([]byte, fetchSz)
-	_ = cmd.SetData(buffer) // resize buffer
 	cmd.SetDWords(fetchSz >> 2)
-	cmd.SetLSP(0x0) // clear LSP field for read only operation
+	cmd.SetLSP(0x0)
+
+	data := make([]byte, 0, getLogTelemetryHeaderSz+dataSz)
+	data = append(data, buffer[:getLogTelemetryHeaderSz]...)
 
 	// 3. retrieving telemetry log by basic page size
 	for offset < dataSz {
@@ -212,7 +220,7 @@ func getLogTelemetry(file *os.File, block telemetryDataBlk, lid uint16, lsp uint
 		cmd.SetOffset(uint64(offset))
 
 		// 3-2. resend ioctl to device
-		if err := ioctl.Submit(file, uintptr(iocAdminCmd), uintptr(unsafe.Pointer(cmd))); err != nil {
+		if err := ioctl.Submit(file, request, cmdPtr); err != nil {
 			return nil, err
 		}
 
@@ -277,5 +285,19 @@ func ParseTelemetryHeader(raw []byte) (*telemetry, error) {
 		return &t, nil
 	} else {
 		return nil, err
+	}
+}
+
+// --------------------------------- //
+// LID XXh: Undefined Vendor Command //
+// --------------------------------- //
+
+// GetLogVendorCMD retrieve a log data for the vendor specific command. The vendorID is an aliased
+// parameter about the lid (Log Page Identifier).
+func GetLogVendorCMD(file *os.File, nsid uint32, vendorID, lsp, lsi uint16, v interface{}) error {
+	if cmd, err := newGetLogCmd(nsid, 0, vendorID, lsp, lsi, v); err != nil {
+		return err
+	} else {
+		return ioctlAdminCmd(file, func() *AdminCmd { return &cmd.AdminCmd })
 	}
 }

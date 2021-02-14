@@ -3,12 +3,12 @@ package nvme
 import (
 	"github.com/stretchr/testify/assert"
 	"math"
+	"reflect"
 	"testing"
 	"unsafe"
 )
 
 const (
-	expectedDWords = uint32(0xAB<<16 | 0xCD)
 	expectedOffset = uint64(0xAB<<32 | 0xCD)
 	expectedLID    = uint16(0xCA)
 	expectedLSP    = uint16(0xE)
@@ -17,10 +17,13 @@ const (
 
 func TestGetLogCmd_SetDWords(t *testing.T) {
 	a := assert.New(t)
+	v := make([]byte, maxAdminCmdPageSz)
+
+	const expectedDWords = maxAdminCmdPageSz >> 2
 
 	// 1. create same get-log command
-	origin := newGetLogCmd(expectedNSId, expectedDWords, expectedOffset, expectedLID, expectedLSP, expectedLSI)
-	tested := newGetLogCmd(expectedNSId, expectedDWords, expectedOffset, expectedLID, expectedLSP, expectedLSI)
+	origin, _ := newGetLogCmd(expectedNSId, expectedOffset, expectedLID, expectedLSP, expectedLSI, v)
+	tested, _ := newGetLogCmd(expectedNSId, expectedOffset, expectedLID, expectedLSP, expectedLSI, v)
 
 	tested.SetDWords(^expectedDWords)
 
@@ -36,6 +39,8 @@ func TestGetLogCmd_SetDWords(t *testing.T) {
 
 	// changed value check
 	a.Equal(^expectedDWords, (tested.CDW10>>16)|(tested.CDW11<<16))
+	a.NotZero((origin.CDW10 >> 16) | (origin.CDW11 << 16))
+	a.NotZero((tested.CDW10 >> 16) | (tested.CDW11 << 16))
 
 	// CDW12/13 check
 	a.Equal(origin.CDW12, tested.CDW12)
@@ -44,10 +49,11 @@ func TestGetLogCmd_SetDWords(t *testing.T) {
 
 func TestGetLogCmd_SetOffset(t *testing.T) {
 	a := assert.New(t)
+	v := make([]byte, 4)
 
 	// 1. create same get-log command
-	origin := newGetLogCmd(expectedNSId, expectedDWords, expectedOffset, expectedLID, expectedLSP, expectedLSI)
-	tested := newGetLogCmd(expectedNSId, expectedDWords, expectedOffset, expectedLID, expectedLSP, expectedLSI)
+	origin, _ := newGetLogCmd(expectedNSId, expectedOffset, expectedLID, expectedLSP, expectedLSI, v)
+	tested, _ := newGetLogCmd(expectedNSId, expectedOffset, expectedLID, expectedLSP, expectedLSI, v)
 
 	tested.SetOffset(^expectedOffset)
 
@@ -69,12 +75,13 @@ func TestGetLogCmd_SetOffset(t *testing.T) {
 
 func TestGetLogCmd_SetLSP(t *testing.T) {
 	a := assert.New(t)
+	v := make([]byte, 4)
 
 	const UMaskLSP = ^(maskUint4 << shiftUint8)
 
 	// 1. create same get-log command
-	origin := newGetLogCmd(expectedNSId, expectedDWords, expectedOffset, expectedLID, expectedLSP, expectedLSI)
-	tested := newGetLogCmd(expectedNSId, expectedDWords, expectedOffset, expectedLID, expectedLSP, expectedLSI)
+	origin, _ := newGetLogCmd(expectedNSId, expectedOffset, expectedLID, expectedLSP, expectedLSI, v)
+	tested, _ := newGetLogCmd(expectedNSId, expectedOffset, expectedLID, expectedLSP, expectedLSI, v)
 
 	// The passwd value is 0xfff1 but 0xfff0 is dirty value. So SetLSP should mask out that dirty
 	// value.
@@ -98,15 +105,38 @@ func TestGetLogCmd_SetLSP(t *testing.T) {
 func TestNewGetLogCmd(t *testing.T) {
 	a := assert.New(t)
 
-	tested := newGetLogCmd(expectedNSId, expectedDWords, expectedOffset, expectedLID, expectedLSP, expectedLSI)
-	a.NotNil(tested)
-	a.Equal(AdminGetLogPage, tested.OpCode)
-	a.Equal(uint32(expectedNSId), tested.NSId)
-	a.Equal(expectedDWords, (tested.CDW10>>16)|(tested.CDW11<<16))
-	a.Equal(expectedOffset, (uint64(tested.CDW12)<<32)|uint64(tested.CDW13))
-	a.Equal(expectedLID, uint16(math.MaxUint8&tested.CDW10))
-	a.Equal(expectedLSP, uint16((tested.CDW10<<16)>>24))
-	a.Equal(expectedLSI, uint16(tested.CDW11>>16))
+	const (
+		expectedSz     = uint32(32)
+		expectedDWords = expectedSz >> 2
+	)
+
+	tcList := []interface{}{
+		make([]byte, expectedSz),
+		&struct{ buffer [expectedSz]byte }{},
+	}
+
+	for _, tc := range tcList {
+		tested, err := newGetLogCmd(expectedNSId, expectedOffset, expectedLID, expectedLSP, expectedLSI, tc)
+		a.NotNil(tested)
+		a.NoError(err)
+		a.Equal(AdminGetLogPage, tested.OpCode)
+		a.Equal(uint32(expectedNSId), tested.NSId)
+		a.Equal(expectedDWords, (tested.CDW10>>16)|(tested.CDW11<<16))
+		a.Equal(expectedOffset, (uint64(tested.CDW12)<<32)|uint64(tested.CDW13))
+		a.Equal(expectedLID, uint16(math.MaxUint8&tested.CDW10))
+		a.Equal(expectedLSP, uint16((tested.CDW10<<16)>>24))
+		a.Equal(expectedLSI, uint16(tested.CDW11>>16))
+		a.Equal(expectedSz, tested.DataLength)
+		a.Equal(reflect.ValueOf(tc).Pointer(), tested.Data)
+	}
+
+	// test invalid case
+	tc := struct {
+		buffer [expectedSz]byte
+	}{}
+	tested, err := newGetLogCmd(expectedNSId, expectedOffset, expectedLID, expectedLSP, expectedLSI, tc)
+	a.Nil(tested)
+	a.Error(err)
 }
 
 func TestSMARTSize(t *testing.T) {
