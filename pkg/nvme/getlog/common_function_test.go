@@ -1,25 +1,29 @@
-package nvme
+package getlog
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/sungup/go-nvme-ioctl/pkg/nvme"
 	"math"
 	"reflect"
 	"testing"
-	"unsafe"
 )
 
 const (
 	expectedOffset = uint64(0xAB<<32 | 0xCD)
-	expectedLID    = uint16(0xCA)
-	expectedLSP    = uint16(0xE)
+	expectedLID    = uint8(0xCA)
+	expectedLSP    = uint8(0xE)
 	expectedLSI    = uint16(0xA)
 )
 
 func TestGetLogCmd_SetDWords(t *testing.T) {
 	a := assert.New(t)
-	v := make([]byte, maxAdminCmdPageSz)
 
-	const expectedDWords = maxAdminCmdPageSz >> 2
+	const (
+		maxAdminPageSz = uint32(4096)
+		expectedDWords = maxAdminPageSz >> 2
+	)
+
+	v := make([]byte, maxAdminPageSz)
 
 	// 1. create same get-log command
 	origin, _ := newGetLogCmd(expectedNSId, expectedOffset, expectedLID, expectedLSP, expectedLSI, v)
@@ -119,12 +123,12 @@ func TestNewGetLogCmd(t *testing.T) {
 		tested, err := newGetLogCmd(expectedNSId, expectedOffset, expectedLID, expectedLSP, expectedLSI, tc)
 		a.NotNil(tested)
 		a.NoError(err)
-		a.Equal(AdminGetLogPage, tested.OpCode)
+		a.Equal(nvme.AdminGetLogPage, tested.OpCode)
 		a.Equal(uint32(expectedNSId), tested.NSId)
 		a.Equal(expectedDWords, (tested.CDW10>>16)|(tested.CDW11<<16))
 		a.Equal(expectedOffset, (uint64(tested.CDW12)<<32)|uint64(tested.CDW13))
-		a.Equal(expectedLID, uint16(math.MaxUint8&tested.CDW10))
-		a.Equal(expectedLSP, uint16((tested.CDW10<<16)>>24))
+		a.Equal(expectedLID, uint8(math.MaxUint8&tested.CDW10))
+		a.Equal(expectedLSP, uint8((tested.CDW10<<16)>>24))
 		a.Equal(expectedLSI, uint16(tested.CDW11>>16))
 		a.Equal(expectedSz, tested.DataLength)
 		a.Equal(reflect.ValueOf(tc).Pointer(), tested.Data)
@@ -137,46 +141,4 @@ func TestNewGetLogCmd(t *testing.T) {
 	tested, err := newGetLogCmd(expectedNSId, expectedOffset, expectedLID, expectedLSP, expectedLSI, tc)
 	a.Nil(tested)
 	a.Error(err)
-}
-
-func TestErrorEntrySize(t *testing.T) {
-	a := assert.New(t)
-
-	a.Equal(uintptr(64), unsafe.Sizeof(errorEntry{}))
-}
-
-func TestSMARTSize(t *testing.T) {
-	a := assert.New(t)
-
-	a.Equal(uintptr(512), unsafe.Sizeof(smart{}))
-}
-
-func TestTelemetryDataBlk_index(t *testing.T) {
-	a := assert.New(t)
-
-	a.Equal(0, DataBlock1.index())
-	a.Equal(1, DataBlock2.index())
-	a.Equal(2, DataBlock3.index())
-}
-
-func TestTelemetrySize(t *testing.T) {
-	a := assert.New(t)
-
-	a.Equal(uintptr(512), unsafe.Sizeof(telemetry{}))
-}
-
-func TestTelemetry_BlockSize(t *testing.T) {
-	a := assert.New(t)
-
-	expectedBlk1 := uint32(2 * 512)
-	expectedBlk2 := uint32(4 * 512)
-	expectedBlk3 := uint32(8 * 512)
-
-	tested := telemetry{
-		DataAreaLastBlock: [3]uint16{2, 4, 8},
-	}
-
-	a.Equal(expectedBlk1, tested.BlockSize(DataBlock1))
-	a.Equal(expectedBlk2, tested.BlockSize(DataBlock2))
-	a.Equal(expectedBlk3, tested.BlockSize(DataBlock3))
 }

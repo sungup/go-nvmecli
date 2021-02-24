@@ -1,7 +1,8 @@
-package nvme
+package identify
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/sungup/go-nvme-ioctl/pkg/nvme"
 	"reflect"
 	"testing"
 	"unsafe"
@@ -16,7 +17,7 @@ const (
 func TestCtrlIdentifySize(t *testing.T) {
 	a := assert.New(t)
 
-	a.Equal(uintptr(4096), unsafe.Sizeof(ctrlIdentify{}))
+	a.Equal(uintptr(4096), unsafe.Sizeof(CtrlIdentify{}))
 	a.Equal(uintptr(32), unsafe.Sizeof(powerStateDesc{}))
 }
 
@@ -35,7 +36,7 @@ func TestNewIdentifyCmd(t *testing.T) {
 		tested, err := newIdentifyCmd(expectedNSId, expectedCNTId, expectedCNS, expectedNvmSetId, tc)
 		a.NotNil(tested)
 		a.NoError(err)
-		a.Equal(AdminIdentify, tested.OpCode)
+		a.Equal(nvme.AdminIdentify, tested.OpCode)
 		a.Equal(uint32(expectedCNTId)<<16|uint32(expectedCNS), tested.CDW10)
 		a.Equal(uint32(expectedNvmSetId), tested.CDW11)
 		a.Equal(uint32(expectedNSId), tested.NSId)

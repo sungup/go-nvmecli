@@ -1,9 +1,11 @@
-package nvme
+package identify
 
 import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/sungup/go-nvme-ioctl/pkg/nvme"
+	"github.com/sungup/go-nvme-ioctl/pkg/nvme/types"
 	"github.com/sungup/go-nvme-ioctl/pkg/utils"
 	"os"
 )
@@ -23,10 +25,10 @@ const (
 
 // newIdentifyCmd generates an AdminCmd structure to retrieve the NVMe's identify related structure.
 // The cntid and cns will be set on CDW10 and nvmSetId also set on CDW11.
-func newIdentifyCmd(nsid uint32, cntid, cns, nvmSetId uint16, v interface{}) (*AdminCmd, error) {
-	cmd := AdminCmd{
-		PassthruCmd: PassthruCmd{
-			OpCode: AdminIdentify,
+func newIdentifyCmd(nsid uint32, cntid, cns, nvmSetId uint16, v interface{}) (*nvme.AdminCmd, error) {
+	cmd := nvme.AdminCmd{
+		PassthruCmd: nvme.PassthruCmd{
+			OpCode: nvme.AdminIdentify,
 			NSId:   nsid,
 			CDW10:  uint32(cntid)<<16 | uint32(cns),
 			CDW11:  uint32(nvmSetId),
@@ -43,14 +45,14 @@ func newIdentifyCmd(nsid uint32, cntid, cns, nvmSetId uint16, v interface{}) (*A
 
 }
 
-// CtrlIdentify returns 4096B byte slice which contains the controller identify data from an NVMe
-// device. If you want the parsed controller identify data, call the ParseCtrlIdentify using the
-// returned byte slice.
-func CtrlIdentify(file *os.File, v interface{}) error {
+// GetCtrlIdentify returns 4096B byte slice which contains the controller identify data from an
+// NVMe device. If you want the parsed controller identify data, call the ParseCtrlIdentify using
+// the returned byte slice.
+func GetCtrlIdentify(file *os.File, v interface{}) error {
 	if cmd, err := newIdentifyCmd(0, 0, cnsController, 0, v); err != nil {
 		return err
 	} else {
-		return ioctlAdminCmd(file, func() *AdminCmd { return cmd })
+		return nvme.IOCtlAdminCmd(file, cmd)
 	}
 }
 
@@ -74,12 +76,12 @@ type powerStateDesc struct {
 	_        [9]byte
 }
 
-// ctrlIdentify is an structure for the controller identify information of an NVMe device. To
+// CtrlIdentify is an structure for the controller identify information of an NVMe device. To
 // prevent externally creation, make it private structure.
-// TODO rebuild ctrlIdentify structure because of 16B unsigned integer parsing
-type ctrlIdentify struct {
-	VID   uint16
-	SSVID uint16
+type CtrlIdentify struct {
+	// Controller Capabilities and Features
+	VID   types.Hex16
+	SSVID types.Hex16
 	SN    [20]byte
 	MN    [40]byte
 	FR    [8]byte
@@ -100,7 +102,7 @@ type ctrlIdentify struct {
 	_         [9]byte // Reserved
 	CNTRLTYPE byte
 
-	FGUID [2]uint64 // TODO make 16byte long int structure
+	FGUID types.Uint128
 	CRDT1 uint16
 	CRDT2 uint16
 	CRDT3 uint16
@@ -124,8 +126,8 @@ type ctrlIdentify struct {
 	MTFA    uint16
 	HMPRE   uint32
 	HMMIN   uint32
-	TNVMCAP [2]uint64 // TODO make 16byte long int structure
-	UNVMCAP [2]uint64 // TODO make 16byte long int structure
+	TNVMCAP types.Uint128
+	UNVMCAP types.Uint128
 
 	RPMBS uint32
 	EDSTT uint16
@@ -184,14 +186,14 @@ type ctrlIdentify struct {
 	_ [1024]byte
 }
 
-// ParseCtrlIdentify creates an ctrlIdentify object to manipulate each value from outsize of this
+// ParseCtrlIdentify creates an CtrlIdentify object to manipulate each value from outsize of this
 // package.
-func ParseCtrlIdentify(raw []byte) (*ctrlIdentify, error) {
+func ParseCtrlIdentify(raw []byte) (*CtrlIdentify, error) {
 	if len(raw) != ctrlIdentifySz {
 		return nil, fmt.Errorf("unexpected identify raw data size: %d", len(raw))
 	}
 
-	i := ctrlIdentify{}
+	i := CtrlIdentify{}
 
 	if err := binary.Read(bytes.NewReader(raw), utils.SystemEndian, &i); err == nil {
 		return &i, nil

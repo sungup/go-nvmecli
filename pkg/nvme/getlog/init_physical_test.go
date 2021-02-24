@@ -1,6 +1,6 @@
 // +build with_phys_device
 
-package nvme
+package getlog
 
 const (
 	targetDevice = "/dev/nvme0"

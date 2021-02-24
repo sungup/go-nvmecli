@@ -40,10 +40,6 @@ const (
 	AdminGetLBAStatus  = opcode(0x86)
 )
 
-const (
-	maxAdminCmdPageSz = uint32(4096)
-)
-
 // nvmeCmd interface has two function to set the metadata pointer and data block pointer. To reduce
 // code duplication to set the pointer through object -> interface -> reflection (for type checking)
 // and pointer assign, each command structure should serve these interface function.
@@ -191,14 +187,7 @@ const (
 	iocIOCmd64     = ioctl.IOCInOut | iocNVMeType | (0x48 << ioctl.NrShift) | uint64(unsafe.Sizeof(PassthruCmd64{})<<ioctl.SizeShift)
 )
 
-// ioctlAdminCmd issues an admin command using makeCmdFunc. All issues generate buffer, make command
-// and submit ioctl. All this procedure same without the command generation, so this function
-// requires general function format `func() *AdminCmd`. There is no need create data pointer while
-// generate command in makeCmdFunc.
-func ioctlAdminCmd(file *os.File, makeCmdFunc func() *AdminCmd) error {
-	// 1. create command and assign data buffer
-	cmd := makeCmdFunc()
-
-	// 2. issue ioctl
+// IOCtlAdminCmd issues an received admin command.
+func IOCtlAdminCmd(file *os.File, cmd *AdminCmd) error {
 	return ioctl.Submit(file, uintptr(iocAdminCmd), uintptr(unsafe.Pointer(cmd)))
 }
