@@ -13,3 +13,5 @@ type Uint16 [2]byte
 type Uint32 [4]byte
 type Uint64 [8]byte
 type Uint128 [2]Uint64
+
+func (u Uint8) Uint() uint64 { return uint64(u) }

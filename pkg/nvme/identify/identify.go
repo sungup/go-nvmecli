@@ -85,10 +85,10 @@ type CtrlIdentify struct {
 	SN    [20]byte
 	MN    [40]byte
 	FR    [8]byte
-	RAB   uint8
-	IEEE  [3]byte
-	CMIC  byte
-	MDTS  uint8
+	RAB   types.Uint8
+	IEEE  types.IEEE
+	CMIC  types.Hex8
+	MDTS  types.Uint8
 
 	CNTLID uint16
 	VER    uint32
@@ -111,16 +111,16 @@ type CtrlIdentify struct {
 
 	// Admin Command Set Attributes & optional Controller Capabilities
 	OACS uint16
-	ACL  uint8
-	AERL uint8
+	ACL  types.Uint8
+	AERL types.Uint8
 
-	FRMW  uint8
-	LPA   uint8
-	ELPE  uint8
-	NPSS  uint8
-	AVSCC uint8
+	FRMW  types.Uint8
+	LPA   types.Uint8
+	ELPE  types.Uint8
+	NPSS  types.Uint8
+	AVSCC types.Uint8
 
-	APSTA   uint8
+	APSTA   types.Uint8
 	WCTEMP  uint16
 	CCTEMP  uint16
 	MTFA    uint16
@@ -131,8 +131,8 @@ type CtrlIdentify struct {
 
 	RPMBS uint32
 	EDSTT uint16
-	DSTO  uint8
-	FWUG  uint8
+	DSTO  types.Uint8
+	FWUG  types.Uint8
 
 	KAS   uint16
 	HCTMA uint16
@@ -144,30 +144,30 @@ type CtrlIdentify struct {
 	HMMAXD    uint16
 	NSETIDMAX uint16
 	ENDGIDMAX uint16
-	ANATT     uint8
+	ANATT     types.Uint8
 
-	ANACAP    uint8
+	ANACAP    types.Uint8
 	ANAGRPMAX uint32
 	NANAGRPID uint32
 	PELS      uint32
 	_         [156]byte
 
 	// NVM Command Set Attributes
-	SQES   uint8
-	CQES   uint8
+	SQES   types.Uint8
+	CQES   types.Uint8
 	MAXCMD uint16
 	NN     uint32
 
 	ONCS  uint16
 	FUSES uint16
-	FNA   uint8
+	FNA   types.Uint8
 
-	VWC  uint8
+	VWC  types.Uint8
 	AWUN uint16
 
 	AWUPF uint16
-	NVSCC uint8
-	NWPC  uint8
+	NVSCC types.Uint8
+	NWPC  types.Uint8
 
 	ACWU uint16
 	_    [2]byte

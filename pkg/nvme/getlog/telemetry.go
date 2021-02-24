@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/sungup/go-nvmecli/pkg/nvme"
+	"github.com/sungup/go-nvmecli/pkg/nvme/types"
 	"github.com/sungup/go-nvmecli/pkg/utils"
 	"os"
 )
@@ -107,9 +108,9 @@ func GetTelemetryCtrlInit(file *os.File, block telemetryDataBlk) ([]byte, error)
 // retrieve the telemetry log with one more ioctl command. Host-initiated log and Controller-
 // initiated log have same format.
 type Telemetry struct {
-	Identifier byte    // [00]
-	_          [4]byte // [04:01] reserved
-	IEEE       [3]byte // [07:05]
+	Identifier byte       // [00]
+	_          [4]byte    // [04:01] reserved
+	IEEE       types.IEEE // [07:05]
 
 	DataAreaLastBlock [3]uint16 // [13:08]
 

@@ -5,7 +5,10 @@ import (
 	"unsafe"
 )
 
-var SystemEndian binary.ByteOrder
+var (
+	SystemEndian  binary.ByteOrder
+	ReverseEndian binary.ByteOrder
+)
 
 func init() {
 	buf := [2]byte{}
@@ -14,8 +17,10 @@ func init() {
 	switch buf {
 	case [2]byte{0xCD, 0xAB}:
 		SystemEndian = binary.LittleEndian
+		ReverseEndian = binary.BigEndian
 	case [2]byte{0xAB, 0xCD}:
 		SystemEndian = binary.BigEndian
+		ReverseEndian = binary.LittleEndian
 	default:
 		panic("could not determine system endian")
 	}
