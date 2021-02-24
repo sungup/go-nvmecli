@@ -1,7 +1,7 @@
 package nvme
 
 import (
-	"github.com/sungup/go-nvme-ioctl/pkg/ioctl"
+	"github.com/sungup/go-nvmecli/pkg/ioctl"
 	"testing"
 	"unsafe"
 

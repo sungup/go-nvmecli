@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/sungup/go-nvme-ioctl/pkg/nvme"
-	"github.com/sungup/go-nvme-ioctl/pkg/utils"
+	"github.com/sungup/go-nvmecli/pkg/nvme"
+	"github.com/sungup/go-nvmecli/pkg/utils"
 	"os"
 )
 

@@ -1,7 +1,7 @@
 package getlog
 
 import (
-	"github.com/sungup/go-nvme-ioctl/pkg/nvme"
+	"github.com/sungup/go-nvmecli/pkg/nvme"
 	"math"
 	"os"
 )

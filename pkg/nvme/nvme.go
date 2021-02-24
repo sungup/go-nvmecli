@@ -2,7 +2,7 @@ package nvme
 
 import (
 	"fmt"
-	"github.com/sungup/go-nvme-ioctl/pkg/ioctl"
+	"github.com/sungup/go-nvmecli/pkg/ioctl"
 	"os"
 	"reflect"
 	"unsafe"

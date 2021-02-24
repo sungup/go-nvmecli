@@ -13,7 +13,7 @@ GOFMT=$(GOCMD) fmt
 GOCLEAN=$(GOCMD) clean
 GOLIST=$(GOCMD) list -mod=vendor
 
-PROJECT_PATH=github.com/sungup/go-nvme-ioctl
+PROJECT_PATH=github.com/sungup/go-nvmecli
 
 BUILD_LDFLAG="-extldflags=-static"
 

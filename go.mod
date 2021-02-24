@@ -1,4 +1,4 @@
-module github.com/sungup/go-nvme-ioctl
+module github.com/sungup/go-nvmecli
 
 go 1.15
 
