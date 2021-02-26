@@ -22,6 +22,9 @@ const (
 	DataBlock3 = telemetryDataBlk(3)
 
 	maxTelemetryPageSz = uint32(4096)
+
+	telemetryHeaderSz   = uint32(512)
+	telemetryBlkSzShift = 9
 )
 
 // index function change the telemetryDataBlk macro to index of Telemetry.DataBlockLast's index
@@ -42,7 +45,7 @@ func getLogTelemetry(file *os.File, block telemetryDataBlk, lid, lsp uint8) ([]b
 	cmd, _ := newGetLogCmd(0, 0, lid, lsp, 0, buffer)
 
 	// 1. get Telemetry header logs with lsp value
-	cmd.SetDWords(getLogTelemetryHeaderSz >> 2)
+	cmd.SetDWords(telemetryHeaderSz >> 2)
 
 	if err = nvme.IOCtlAdminCmd(file, &cmd.AdminCmd); err != nil {
 		return nil, err
@@ -54,17 +57,16 @@ func getLogTelemetry(file *os.File, block telemetryDataBlk, lid, lsp uint8) ([]b
 
 	// 2. calculate retrieving data size, create return data and resize buffer
 	dataSz := header.BlockSize(block)
-	offset := uint32(getLogTelemetryHeaderSz)
 	fetchSz := maxTelemetryPageSz
 
 	cmd.SetDWords(fetchSz >> 2)
 	cmd.SetLSP(0x0)
 
-	data := make([]byte, 0, getLogTelemetryHeaderSz+dataSz)
-	data = append(data, buffer[:getLogTelemetryHeaderSz]...)
+	data := make([]byte, 0, telemetryHeaderSz+dataSz)
+	data = append(data, buffer[:telemetryHeaderSz]...)
 
 	// 3. retrieving Telemetry log by basic page size
-	for offset < dataSz {
+	for offset := telemetryHeaderSz; offset < dataSz; offset += fetchSz {
 		// 3-1. update offset and dwords of getLogCmd
 		if dataSz < offset+fetchSz {
 			fetchSz = dataSz - offset
@@ -78,9 +80,6 @@ func getLogTelemetry(file *os.File, block telemetryDataBlk, lid, lsp uint8) ([]b
 		}
 
 		data = append(data, buffer[:fetchSz]...)
-
-		// 3-3. move next offset
-		offset += fetchSz
 	}
 
 	return data, nil
@@ -123,13 +122,13 @@ type Telemetry struct {
 
 // BlockSize returns the Byte unit each data block size calculating the DataAreaLastBlock.
 func (t *Telemetry) BlockSize(block telemetryDataBlk) uint32 {
-	return uint32(t.DataAreaLastBlock[block.index()]) << getLogTelemetryBlkSzShift
+	return uint32(t.DataAreaLastBlock[block.index()]) << telemetryBlkSzShift
 }
 
 // ParseTelemetryHeader parses the Telemetry's header information from raw data. If the size of raw
 // data is under 512B, this function raise an error.
 func ParseTelemetryHeader(raw []byte) (*Telemetry, error) {
-	if len(raw) < getLogTelemetryHeaderSz {
+	if len(raw) < int(telemetryHeaderSz) {
 		return nil, fmt.Errorf("unexpected Telemetry header size: %d", len(raw))
 	}
 

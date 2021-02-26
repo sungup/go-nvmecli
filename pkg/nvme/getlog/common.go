@@ -23,9 +23,7 @@ const (
 	logPageLBAStatusInfo  = uint8(0x0E)
 	logPageEndurGrpEvt    = uint8(0x0F)
 
-	getLogSMARTSz             = 512
-	getLogTelemetryHeaderSz   = 512
-	getLogTelemetryBlkSzShift = 9
+	getLogSMARTSz = 512
 
 	maskUint4   = uint32(1<<4 - 1)
 	maskUint8   = uint32(math.MaxUint8)
