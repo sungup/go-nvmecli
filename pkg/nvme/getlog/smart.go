@@ -8,10 +8,11 @@ import (
 	"github.com/sungup/go-nvmecli/pkg/nvme/types"
 	"github.com/sungup/go-nvmecli/pkg/utils"
 	"os"
+	"unsafe"
 )
 
 // ----------------------------------- //
-// LID 02h: GetSMART / Health Information //
+// LID 02h: SMART / Health Information //
 // ----------------------------------- //
 
 type SMART struct {
@@ -46,7 +47,7 @@ type SMART struct {
 	_ [280]byte // reserved
 }
 
-// GetSMART will retrieve GetSMART data from NVMe device.
+// GetSMART will retrieve SMART data from NVMe device.
 func GetSMART(file *os.File, v interface{}) error {
 	if cmd, err := newGetLogCmd(0, 0, logPageSMART, 0, 0, v); err != nil {
 		return err
@@ -57,7 +58,7 @@ func GetSMART(file *os.File, v interface{}) error {
 
 // ParseSMART creates an GetSMART object to get the device health information.
 func ParseSMART(raw []byte) (*SMART, error) {
-	if len(raw) != getLogSMARTSz {
+	if len(raw) != int(unsafe.Sizeof(SMART{})) {
 		return nil, fmt.Errorf("unexpected GetSMART raw data size: %d", len(raw))
 	}
 

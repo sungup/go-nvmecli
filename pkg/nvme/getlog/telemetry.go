@@ -126,7 +126,7 @@ func (t *Telemetry) BlockSize(block telemetryDataBlk) uint32 {
 }
 
 // ParseTelemetryHeader parses the Telemetry's header information from raw data. If the size of raw
-// data is under 512B, this function raise an error.
+// data is under 512B, this function raises an error.
 func ParseTelemetryHeader(raw []byte) (*Telemetry, error) {
 	if len(raw) < int(telemetryHeaderSz) {
 		return nil, fmt.Errorf("unexpected Telemetry header size: %d", len(raw))
