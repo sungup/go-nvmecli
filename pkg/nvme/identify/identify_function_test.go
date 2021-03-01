@@ -53,3 +53,20 @@ func TestNewIdentifyCmd(t *testing.T) {
 	a.Nil(tested)
 	a.Error(err)
 }
+
+func TestNamespaceIdentifySize(t *testing.T) {
+	a := assert.New(t)
+	a.Equal(uintptr(4096), unsafe.Sizeof(NamespaceIdentify{}))
+}
+
+func TestLbaFormat_MetadataSize(t *testing.T) {
+	// TODO implementing here
+}
+
+func TestLbaFormat_LBADataSize(t *testing.T) {
+	// TODO implementing here
+}
+
+func TestLbaFormat_RelativePerformance(t *testing.T) {
+	// TODO implementing here
+}
