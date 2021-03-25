@@ -29,7 +29,7 @@ func TestGetLogCmd_SetDWords(t *testing.T) {
 	origin, _ := newGetLogCmd(expectedNSId, expectedOffset, expectedLID, expectedLSP, expectedLSI, v)
 	tested, _ := newGetLogCmd(expectedNSId, expectedOffset, expectedLID, expectedLSP, expectedLSI, v)
 
-	tested.SetDWords(^expectedDWords)
+	tested.DWords(^expectedDWords)
 
 	// CDW10 check
 	a.NotEqual(origin.CDW10, tested.CDW10)
@@ -59,7 +59,7 @@ func TestGetLogCmd_SetOffset(t *testing.T) {
 	origin, _ := newGetLogCmd(expectedNSId, expectedOffset, expectedLID, expectedLSP, expectedLSI, v)
 	tested, _ := newGetLogCmd(expectedNSId, expectedOffset, expectedLID, expectedLSP, expectedLSI, v)
 
-	tested.SetOffset(^expectedOffset)
+	tested.Offset(^expectedOffset)
 
 	// CDW10/11 check
 	a.Equal(origin.CDW10, tested.CDW10)
@@ -87,9 +87,8 @@ func TestGetLogCmd_SetLSP(t *testing.T) {
 	origin, _ := newGetLogCmd(expectedNSId, expectedOffset, expectedLID, expectedLSP, expectedLSI, v)
 	tested, _ := newGetLogCmd(expectedNSId, expectedOffset, expectedLID, expectedLSP, expectedLSI, v)
 
-	// The passwd value is 0xfff1 but 0xfff0 is dirty value. So SetLSP should mask out that dirty
-	// value.
-	tested.SetLSP(^expectedLSP)
+	// The passwd value is 0xfff1 but 0xfff0 is dirty value. So LSP should mask out that dirty value.
+	tested.LSP(^expectedLSP)
 
 	// CDW11/12/13 check
 	a.Equal(origin.CDW11, tested.CDW11)

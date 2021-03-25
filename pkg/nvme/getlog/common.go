@@ -37,20 +37,20 @@ type getLogCmd struct {
 	nvme.AdminCmd
 }
 
-// SetDWords changes the dwords fields (NUMDL and NUMDU).
-func (l *getLogCmd) SetDWords(dwords uint32) {
+// DWords changes the dwords fields (NUMDL and NUMDU).
+func (l *getLogCmd) DWords(dwords uint32) {
 	l.CDW10 = (dwords << shiftUint16) | (l.CDW10 & maskUint16)
 	l.CDW11 = (dwords >> shiftUint16) | (l.CDW11 & umaskUint16)
 }
 
-// SetDWords changes the offset fields (LPOL and LPOU).
-func (l *getLogCmd) SetOffset(offset uint64) {
+// Offset changes the offset fields (LPOL and LPOU).
+func (l *getLogCmd) Offset(offset uint64) {
 	l.CDW12 = uint32(offset >> shiftUint32)
 	l.CDW13 = uint32(offset & maskUint32)
 }
 
-// SetLSP change the 4bit Log Specific Identifier.
-func (l *getLogCmd) SetLSP(lsp uint8) {
+// LSP change the 4bit Log Specific Identifier.
+func (l *getLogCmd) LSP(lsp uint8) {
 	const UMaskLSP = ^(maskUint4 << shiftUint8)
 
 	l.CDW10 = (l.CDW10 & UMaskLSP) | (uint32(lsp)&maskUint4)<<shiftUint8
@@ -82,7 +82,7 @@ func newGetLogCmd(nsid uint32, offset uint64, lid, lsp uint8, lsi uint16, v inte
 	if err := cmd.SetData(v); err != nil {
 		return nil, err
 	} else {
-		cmd.SetDWords(cmd.DataLength >> 2)
+		cmd.DWords(cmd.DataLength >> 2)
 		return &cmd, nil
 	}
 }

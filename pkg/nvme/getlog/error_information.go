@@ -51,9 +51,9 @@ func GetErrorInformation(file *os.File, latest uint32) ([]errorEntry, error) {
 		// 3-1. update offset and dwords of getLogCmd
 		if maxEntry < index+unitErrInfoCnt {
 			fetchCnt = maxEntry - index
-			cmd.SetDWords(fetchCnt * errEntrySz >> 2)
+			cmd.DWords(fetchCnt * errEntrySz >> 2)
 		}
-		cmd.SetOffset(uint64(index * errEntrySz))
+		cmd.Offset(uint64(index * errEntrySz))
 
 		// 3-2. send ioctl to device
 		if err := nvme.IOCtlAdminCmd(file, &cmd.AdminCmd); err != nil {

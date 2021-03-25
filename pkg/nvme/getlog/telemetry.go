@@ -45,7 +45,7 @@ func getLogTelemetry(file *os.File, block telemetryDataBlk, lid, lsp uint8) ([]b
 	cmd, _ := newGetLogCmd(0, 0, lid, lsp, 0, buffer)
 
 	// 1. get Telemetry header logs with lsp value
-	cmd.SetDWords(telemetryHeaderSz >> 2)
+	cmd.DWords(telemetryHeaderSz >> 2)
 
 	if err = nvme.IOCtlAdminCmd(file, &cmd.AdminCmd); err != nil {
 		return nil, err
@@ -59,8 +59,8 @@ func getLogTelemetry(file *os.File, block telemetryDataBlk, lid, lsp uint8) ([]b
 	dataSz := header.BlockSize(block)
 	fetchSz := maxTelemetryPageSz
 
-	cmd.SetDWords(fetchSz >> 2)
-	cmd.SetLSP(0x0)
+	cmd.DWords(fetchSz >> 2)
+	cmd.LSP(0x0)
 
 	data := make([]byte, 0, telemetryHeaderSz+dataSz)
 	data = append(data, buffer[:telemetryHeaderSz]...)
@@ -70,9 +70,9 @@ func getLogTelemetry(file *os.File, block telemetryDataBlk, lid, lsp uint8) ([]b
 		// 3-1. update offset and dwords of getLogCmd
 		if dataSz < offset+fetchSz {
 			fetchSz = dataSz - offset
-			cmd.SetDWords(fetchSz >> 2)
+			cmd.DWords(fetchSz >> 2)
 		}
-		cmd.SetOffset(uint64(offset))
+		cmd.Offset(uint64(offset))
 
 		// 3-2. resend ioctl to device
 		if err := nvme.IOCtlAdminCmd(file, &cmd.AdminCmd); err != nil {

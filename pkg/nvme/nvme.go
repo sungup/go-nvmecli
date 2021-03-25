@@ -134,6 +134,10 @@ func (c *PassthruCmd) SetData(data interface{}) error {
 	}
 }
 
+func (c *PassthruCmd) ClearData() {
+	c.Data, c.DataLength = uintptr(0), 0
+}
+
 // SetMeta set the memory pointer and it's size of metadata block.
 func (c *PassthruCmd) SetMeta(data interface{}) error {
 	if ptr, size, err := getPtr(data); err == nil {
